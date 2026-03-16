@@ -4,6 +4,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const https = require('https');
 
 const app = express();
 
@@ -11,6 +12,17 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb' }));
+
+// ElevenLabs API Configuration
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
+const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1';
+
+// Voice IDs for ElevenLabs
+const VOICE_IDS = {
+    'male': '21m00Tcm4TlvDq8ikWAM',
+    'female': 'EXAVITQu4vr4xnSDxMaL',
+    'neutral': 'pNInz6obpgDQGcFmaJgB'
+};
 
 // Configure multer with memory storage
 const storage = multer.memoryStorage();
@@ -62,7 +74,7 @@ app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
     }
 });
 
-// Generate TTS endpoint - Simple and reliable
+// Generate TTS endpoint
 app.post('/api/generate-tts', async (req, res) => {
     try {
         const { text, voiceType } = req.body;
@@ -85,8 +97,21 @@ app.post('/api/generate-tts', async (req, res) => {
             });
         }
 
-        // Generate audio directly
-        const audioBuffer = generateAudio(text, voiceType);
+        let audioBuffer;
+
+        // Try ElevenLabs API if key is available
+        if (ELEVENLABS_API_KEY) {
+            try {
+                audioBuffer = await generateWithElevenLabs(text, voiceType);
+            } catch (error) {
+                console.warn('ElevenLabs API failed, using fallback:', error.message);
+                audioBuffer = generateFallbackAudio(text, voiceType);
+            }
+        } else {
+            // Use fallback audio generation
+            audioBuffer = generateFallbackAudio(text, voiceType);
+        }
+
         const audioBase64 = audioBuffer.toString('base64');
 
         // Cache the result
@@ -106,6 +131,109 @@ app.post('/api/generate-tts', async (req, res) => {
     }
 });
 
+// Generate audio with ElevenLabs API
+function generateWithElevenLabs(text, voiceType) {
+    return new Promise((resolve, reject) => {
+        try {
+            const voiceId = VOICE_IDS[voiceType] || VOICE_IDS['neutral'];
+            const url = `${ELEVENLABS_API_URL}/text-to-speech/${voiceId}`;
+            
+            const options = {
+                method: 'POST',
+                headers: {
+                    'xi-api-key': ELEVENLABS_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const data = JSON.stringify({
+                text: text,
+                model_id: 'eleven_monolingual_v1',
+                voice_settings: {
+                    stability: 0.5,
+                    similarity_boost: 0.75
+                }
+            });
+
+            const req = https.request(url, options, (res) => {
+                let audioData = Buffer.alloc(0);
+
+                res.on('data', (chunk) => {
+                    audioData = Buffer.concat([audioData, chunk]);
+                });
+
+                res.on('end', () => {
+                    if (res.statusCode === 200) {
+                        resolve(audioData);
+                    } else {
+                        reject(new Error(`ElevenLabs API returned status ${res.statusCode}`));
+                    }
+                });
+            });
+
+            req.on('error', (error) => {
+                reject(error);
+            });
+
+            req.write(data);
+            req.end();
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Fallback audio generation
+function generateFallbackAudio(text, voiceType) {
+    const sampleRate = 16000;
+    const wordCount = text.split(' ').length;
+    const duration = Math.max(0.5, Math.min(5, wordCount * 0.15));
+    
+    const totalSamples = Math.floor(sampleRate * duration);
+    const samples = new Float32Array(totalSamples);
+
+    let baseFrequency = 180;
+    if (voiceType === 'male') {
+        baseFrequency = 100;
+    } else if (voiceType === 'female') {
+        baseFrequency = 220;
+    }
+
+    const phaseIncrement = (2 * Math.PI * baseFrequency) / sampleRate;
+    let phase = 0;
+
+    for (let i = 0; i < totalSamples; i++) {
+        const t = i / sampleRate;
+        
+        let envelope = 1;
+        if (t < 0.1) {
+            envelope = t / 0.1;
+        } else if (t > duration - 0.1) {
+            envelope = (duration - t) / 0.1;
+        }
+
+        let sample = Math.sin(phase) * 0.4;
+        sample += Math.sin(phase * 2) * 0.15;
+        sample += Math.sin(phase * 3) * 0.08;
+        sample += Math.sin(phase * 0.5) * 0.1;
+
+        const modulation = 1 + 0.2 * Math.sin(2 * Math.PI * 2 * t);
+        sample *= modulation;
+
+        const noise = (Math.random() - 0.5) * 0.05;
+        sample += noise;
+
+        samples[i] = sample * envelope;
+
+        phase += phaseIncrement * modulation;
+        if (phase > 2 * Math.PI) {
+            phase -= 2 * Math.PI;
+        }
+    }
+
+    return encodeWAV(samples, sampleRate);
+}
+
 // Combine audio endpoint
 app.post('/api/combine-audio', upload.fields([
     { name: 'sample', maxCount: 1 },
@@ -119,7 +247,6 @@ app.post('/api/combine-audio', upload.fields([
         const sampleBuffer = req.files.sample[0].buffer;
         const ttsBuffer = req.files.tts[0].buffer;
 
-        // Combine audio buffers
         const combinedBuffer = Buffer.concat([sampleBuffer, ttsBuffer]);
 
         res.json({
@@ -135,7 +262,12 @@ app.post('/api/combine-audio', upload.fields([
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Backend is running' });
+    res.json({ 
+        status: 'ok', 
+        message: 'Backend is running',
+        elevenLabsConfigured: !!ELEVENLABS_API_KEY,
+        usingFallback: !ELEVENLABS_API_KEY
+    });
 });
 
 // Serve static files
@@ -145,69 +277,6 @@ app.use(express.static(path.join(__dirname, '..')));
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
-
-// Generate audio - Creates a WAV file with synthesized speech-like sound
-function generateAudio(text, voiceType) {
-    const sampleRate = 16000;
-    
-    // Duration based on text length (roughly 150ms per word)
-    const wordCount = text.split(' ').length;
-    const duration = Math.max(0.5, Math.min(5, wordCount * 0.15));
-    
-    const totalSamples = Math.floor(sampleRate * duration);
-    const samples = new Float32Array(totalSamples);
-
-    // Determine base frequency based on voice type
-    let baseFrequency = 180;
-    if (voiceType === 'male') {
-        baseFrequency = 100;
-    } else if (voiceType === 'female') {
-        baseFrequency = 220;
-    }
-
-    // Generate audio with multiple harmonics for realistic sound
-    const phaseIncrement = (2 * Math.PI * baseFrequency) / sampleRate;
-    let phase = 0;
-
-    for (let i = 0; i < totalSamples; i++) {
-        const t = i / sampleRate;
-        
-        // Envelope - fade in and out
-        let envelope = 1;
-        if (t < 0.1) {
-            envelope = t / 0.1; // Fade in
-        } else if (t > duration - 0.1) {
-            envelope = (duration - t) / 0.1; // Fade out
-        }
-
-        // Main tone
-        let sample = Math.sin(phase) * 0.4;
-        
-        // Add harmonics for richer sound
-        sample += Math.sin(phase * 2) * 0.15;
-        sample += Math.sin(phase * 3) * 0.08;
-        sample += Math.sin(phase * 0.5) * 0.1;
-
-        // Add frequency modulation for speech-like quality
-        const modulation = 1 + 0.2 * Math.sin(2 * Math.PI * 2 * t);
-        sample *= modulation;
-
-        // Add some noise for naturalness
-        const noise = (Math.random() - 0.5) * 0.05;
-        sample += noise;
-
-        // Apply envelope
-        samples[i] = sample * envelope;
-
-        // Update phase
-        phase += phaseIncrement * modulation;
-        if (phase > 2 * Math.PI) {
-            phase -= 2 * Math.PI;
-        }
-    }
-
-    return encodeWAV(samples, sampleRate);
-}
 
 // Encode to WAV format
 function encodeWAV(samples, sampleRate) {
@@ -220,7 +289,6 @@ function encodeWAV(samples, sampleRate) {
         }
     };
 
-    // WAV header
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + samples.length * 2, true);
     writeString(8, 'WAVE');
@@ -235,7 +303,6 @@ function encodeWAV(samples, sampleRate) {
     writeString(36, 'data');
     view.setUint32(40, samples.length * 2, true);
 
-    // Write audio data
     let offset = 44;
     for (let i = 0; i < samples.length; i++) {
         const sample = Math.max(-1, Math.min(1, samples[i]));
@@ -255,6 +322,10 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`ElevenLabs API configured: ${!!ELEVENLABS_API_KEY}`);
+    if (!ELEVENLABS_API_KEY) {
+        console.log('Using fallback audio generation (set ELEVENLABS_API_KEY for premium TTS)');
+    }
 });
 
 module.exports = app;

@@ -17,6 +17,7 @@ Click **"Add Environment Variable"** for each variable below:
 |---|---|---|
 | `NODE_ENV` | `production` | Sets the environment to production mode |
 | `PORT` | `3001` | Port for the backend server |
+| `ELEVENLABS_API_KEY` | `sk_98f68a2a4538384ad19fab4b417c46668297f4ab4668cac1` | Your ElevenLabs API key for TTS (optional - fallback audio used if not set) |
 
 ### Step 3: Save and Deploy
 
@@ -57,7 +58,10 @@ Go to **"Environment Variables"** section and add:
 ```
 NODE_ENV = production
 PORT = 3001
+ELEVENLABS_API_KEY = sk_98f68a2a4538384ad19fab4b417c46668297f4ab4668cac1
 ```
+
+**Note:** Replace the API key with your actual ElevenLabs API key
 
 ### Vercel Frontend Variables:
 ```
