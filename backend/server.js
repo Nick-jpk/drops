@@ -4,6 +4,8 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const https = require('https');
+const http = require('http');
 
 const app = express();
 
@@ -12,13 +14,24 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb' }));
 
+// ElevenLabs API Configuration
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_98f68a2a4538384ad19fab4b417c46668297f4ab4668cac1';
+const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1';
+
+// Voice IDs for ElevenLabs
+const VOICE_IDS = {
+    'male': '21m00Tcm4TlvDq8ikWAM', // Adam - Male voice
+    'female': 'EXAVITQu4vr4xnSDxMaL', // Bella - Female voice
+    'neutral': 'pNInz6obpgDQGcFmaJgB' // Callum - Neutral voice
+};
+
 // Setup temp directory
 const tempDir = path.join(os.tmpdir(), 'dj-drops');
 if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
 }
 
-// Configure multer with memory storage for speed
+// Configure multer with memory storage
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
@@ -32,20 +45,19 @@ const audioCache = new Map();
 setInterval(() => {
     const now = Date.now();
     for (const [key, value] of audioCache.entries()) {
-        if (now - value.timestamp > 3600000) { // 1 hour
+        if (now - value.timestamp > 3600000) {
             audioCache.delete(key);
         }
     }
 }, 600000);
 
-// Analyze voice endpoint - Ultra fast
+// Analyze voice endpoint
 app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No audio file' });
         }
 
-        // Instant response with characteristics
         const characteristics = {
             fundamentalFrequency: 150,
             spectralCentroid: 2000,
@@ -69,10 +81,10 @@ app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
     }
 });
 
-// Generate TTS endpoint - Ultra fast (< 100ms)
+// Generate TTS using ElevenLabs
 app.post('/api/generate-tts', async (req, res) => {
     try {
-        const { text, voiceType, voiceCharacteristics } = req.body;
+        const { text, voiceType } = req.body;
 
         if (!text) {
             return res.status(400).json({ error: 'No text provided' });
@@ -92,8 +104,16 @@ app.post('/api/generate-tts', async (req, res) => {
             });
         }
 
-        // Generate audio instantly
-        const audioBuffer = generateFastAudio(text, voiceType, voiceCharacteristics);
+        // Get voice ID
+        const voiceId = VOICE_IDS[voiceType] || VOICE_IDS['neutral'];
+
+        // Call ElevenLabs API
+        const audioBuffer = await callElevenLabsAPI(text, voiceId);
+        
+        if (!audioBuffer) {
+            throw new Error('Failed to generate audio from ElevenLabs');
+        }
+
         const audioBase64 = audioBuffer.toString('base64');
 
         // Cache the result
@@ -113,7 +133,60 @@ app.post('/api/generate-tts', async (req, res) => {
     }
 });
 
-// Combine audio endpoint - Ultra fast
+// Call ElevenLabs API
+function callElevenLabsAPI(text, voiceId) {
+    return new Promise((resolve, reject) => {
+        try {
+            const url = `${ELEVENLABS_API_URL}/text-to-speech/${voiceId}`;
+            
+            const options = {
+                method: 'POST',
+                headers: {
+                    'xi-api-key': ELEVENLABS_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const data = JSON.stringify({
+                text: text,
+                model_id: 'eleven_monolingual_v1',
+                voice_settings: {
+                    stability: 0.5,
+                    similarity_boost: 0.75
+                }
+            });
+
+            const req = https.request(url, options, (res) => {
+                let audioData = Buffer.alloc(0);
+
+                res.on('data', (chunk) => {
+                    audioData = Buffer.concat([audioData, chunk]);
+                });
+
+                res.on('end', () => {
+                    if (res.statusCode === 200) {
+                        resolve(audioData);
+                    } else {
+                        console.error('ElevenLabs API Error:', res.statusCode, audioData.toString());
+                        reject(new Error(`ElevenLabs API returned status ${res.statusCode}`));
+                    }
+                });
+            });
+
+            req.on('error', (error) => {
+                console.error('Request error:', error);
+                reject(error);
+            });
+
+            req.write(data);
+            req.end();
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Combine audio endpoint
 app.post('/api/combine-audio', upload.fields([
     { name: 'sample', maxCount: 1 },
     { name: 'tts', maxCount: 1 }
@@ -142,7 +215,11 @@ app.post('/api/combine-audio', upload.fields([
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Backend is running' });
+    res.json({ 
+        status: 'ok', 
+        message: 'Backend is running',
+        elevenLabsConfigured: ELEVENLABS_API_KEY !== 'sk_free_demo_key'
+    });
 });
 
 // Serve static files
@@ -153,78 +230,6 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Ultra-fast audio generation (< 50ms)
-function generateFastAudio(text, voiceType, voiceCharacteristics) {
-    const sampleRate = 16000;
-    const duration = Math.max(0.5, Math.min(3, text.length / 20)); // Shorter duration
-    const totalSamples = Math.floor(sampleRate * duration);
-    const samples = new Float32Array(totalSamples);
-
-    // Determine frequency based on voice type
-    let frequency = 180;
-    if (voiceType === 'male') {
-        frequency = 120;
-    } else if (voiceType === 'female') {
-        frequency = 250;
-    }
-
-    // Apply voice characteristics
-    if (voiceCharacteristics && voiceCharacteristics.fundamentalFrequency) {
-        frequency = voiceCharacteristics.fundamentalFrequency;
-    }
-
-    // Ultra-fast audio generation with minimal processing
-    const phaseIncrement = (2 * Math.PI * frequency) / sampleRate;
-    let phase = 0;
-
-    for (let i = 0; i < totalSamples; i++) {
-        // Simple sine wave with fast envelope
-        const envelope = Math.max(0, 1 - (i / totalSamples) * 1.5);
-        samples[i] = Math.sin(phase) * envelope * 0.3;
-        phase += phaseIncrement;
-        if (phase > 2 * Math.PI) phase -= 2 * Math.PI;
-    }
-
-    return encodeWAVFast(samples, sampleRate);
-}
-
-// Fast WAV encoding
-function encodeWAVFast(samples, sampleRate) {
-    const buffer = new ArrayBuffer(44 + samples.length * 2);
-    const view = new DataView(buffer);
-
-    // Write WAV header (minimal processing)
-    const writeString = (offset, string) => {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    };
-
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + samples.length * 2, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, samples.length * 2, true);
-
-    // Fast audio data writing
-    let offset = 44;
-    for (let i = 0; i < samples.length; i++) {
-        const sample = Math.max(-1, Math.min(1, samples[i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-        offset += 2;
-    }
-
-    return Buffer.from(buffer);
-}
-
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Error:', err);
@@ -234,6 +239,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`ElevenLabs API Key configured: ${ELEVENLABS_API_KEY !== 'sk_free_demo_key'}`);
 });
 
 module.exports = app;
