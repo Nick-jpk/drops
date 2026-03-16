@@ -1,0 +1,16 @@
+{
+  "name": "dj-drops",
+  "version": "1.0.0",
+  "description": "AI Voice Cloning DJ Drop Creator",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "cd backend && npm start"
+  },
+  "keywords": ["dj", "voice-cloning", "tts", "audio"],
+  "author": "DJ Drops",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

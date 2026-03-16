@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJ Drops - AI Voice Cloning</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">🎧 DJ Drops</div>
+            <ul class="nav-menu">
+                <li><a href="#home" class="nav-link">Home</a></li>
+                <li><a href="#creator" class="nav-link">Creator</a></li>
+                <li><a href="#contact" class="nav-link">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-content">
+            <h1>🎙️ AI Voice Cloning DJ Drop Creator</h1>
+            <p>Create custom DJ drops with advanced voice cloning technology</p>
+            <a href="#creator" class="btn btn-primary">Start Creating</a>
+        </div>
+    </section>
+
+    <!-- Creator Section -->
+    <section id="creator" class="creator">
+        <div class="container">
+            <h2>Create Your DJ Drop</h2>
+            <p class="subtitle">Upload audio, add text, and generate drops with cloned voice</p>
+
+            <div class="creator-grid">
+                <!-- Step 1: Upload -->
+                <div class="step-card">
+                    <h3>Step 1: Upload Audio</h3>
+                    <div class="upload-box" id="uploadBox">
+                        <p>📁 Drag & drop or click to upload</p>
+                        <input type="file" id="audioInput" accept="audio/*" style="display: none;">
+                    </div>
+                    <div id="uploadStatus" style="display: none; margin-top: 1rem;">
+                        <p>✓ File: <span id="fileName"></span></p>
+                        <audio id="audioPreview" controls style="width: 100%; margin-top: 0.5rem;"></audio>
+                    </div>
+                </div>
+
+                <!-- Step 2: Text -->
+                <div class="step-card">
+                    <h3>Step 2: Write Text</h3>
+                    <textarea id="textInput" placeholder="Enter text for TTS (e.g., 'You are listening to DJ Max')" rows="4"></textarea>
+                    <div class="voice-select">
+                        <label for="voiceType">Voice Type:</label>
+                        <select id="voiceType">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="neutral">Neutral</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Step 3: Generate -->
+                <div class="step-card">
+                    <h3>Step 3: Generate</h3>
+                    <button id="generateBtn" class="btn btn-success" disabled>🎵 Generate Drop</button>
+                    <div id="loadingStatus" style="display: none; margin-top: 1rem;">
+                        <p>⏳ Generating...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div id="resultStatus" style="display: none; margin-top: 1rem;">
+                        <p>✓ Your drop is ready!</p>
+                        <audio id="resultAudio" controls style="width: 100%; margin-top: 0.5rem;"></audio>
+                        <button id="downloadBtn" class="btn btn-download" style="margin-top: 1rem; width: 100%;">📥 Download</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact">
+        <div class="container">
+            <h2>Get in Touch</h2>
+            <form class="contact-form" id="contactForm">
+                <input type="text" placeholder="Your Name" required>
+                <input type="email" placeholder="Your Email" required>
+                <textarea placeholder="Your Message" rows="5" required></textarea>
+                <button type="submit" class="btn btn-primary">Send Message</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2026 DJ Drops. All rights reserved.</p>
+    </footer>
+
+    <script src="./script.js"></script>
+</body>
+</html>
