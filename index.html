@@ -447,8 +447,12 @@
                     </div>
                     <div id="resultStatus" style="display: none; margin-top: 1rem;">
                         <p>✓ Your DJ drop is ready!</p>
-                        <audio id="resultAudio" controls style="width: 100%; margin: 1rem 0;"></audio>
-                        <button id="downloadBtn" class="btn btn-download" style="width: 100%;">📥 Download DJ Drop</button>
+                        <div style="background-color: rgba(0, 102, 204, 0.1); border: 1px solid #0066cc; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                            <p style="color: #0066cc; margin-bottom: 0.5rem; font-size: 0.9rem;">📁 Audio File Ready</p>
+                            <audio id="resultAudio" controls style="width: 100%; margin-bottom: 1rem;"></audio>
+                            <button id="downloadBtn" class="btn btn-download" style="width: 100%; margin-bottom: 0.5rem;">📥 Download DJ Drop (WAV)</button>
+                            <p style="color: #0066cc; font-size: 0.8rem; margin-top: 0.5rem;">💾 File will be saved to your device</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -632,13 +636,38 @@
                 loadingStatus.style.display = 'none';
                 resultStatus.style.display = 'block';
 
-                // Setup download button
-                document.getElementById('downloadBtn').onclick = () => {
-                    const link = document.createElement('a');
-                    link.href = 'data:audio/wav;base64,' + combineData.audio;
-                    link.download = `dj-drop-${Date.now()}.wav`;
-                    link.click();
+                // Setup download button with enhanced functionality
+                const downloadBtn = document.getElementById('downloadBtn');
+                downloadBtn.onclick = () => {
+                    try {
+                        const now = new Date();
+                        const dateStr = now.toISOString().split('T')[0];
+                        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+                        const filename = `DJ-Drop-${dateStr}-${timeStr}.wav`;
+                        
+                        const link = document.createElement('a');
+                        link.href = 'data:audio/wav;base64,' + combineData.audio;
+                        link.download = filename;
+                        link.style.display = 'none';
+                        
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        const originalText = downloadBtn.textContent;
+                        downloadBtn.textContent = '✓ Downloaded!';
+                        downloadBtn.style.backgroundColor = '#00a86b';
+                        
+                        setTimeout(() => {
+                            downloadBtn.textContent = originalText;
+                            downloadBtn.style.backgroundColor = '';
+                        }, 2000);
+                    } catch (error) {
+                        console.error('Download error:', error);
+                        alert('Error downloading file: ' + error.message);
+                    }
                 };
+                downloadBtn.focus();
 
             } catch (error) {
                 console.error('Error:', error);
