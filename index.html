@@ -315,46 +315,7 @@
             margin-top: 0.5rem;
         }
 
-        /* Contact Section */
-        .contact {
-            background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--accent-blue) 100%);
-            padding: 80px 20px;
-        }
 
-        .contact h2 {
-            text-align: center;
-            font-size: 2.5rem;
-            color: var(--accent-red);
-            margin-bottom: 2rem;
-        }
-
-        .contact-form {
-            max-width: 600px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .contact-form input,
-        .contact-form textarea {
-            padding: 12px;
-            background-color: var(--primary-dark);
-            border: 1px solid var(--border-color);
-            color: var(--text-light);
-            border-radius: 5px;
-            font-family: inherit;
-            font-size: 1rem;
-        }
-
-        .contact-form input::placeholder,
-        .contact-form textarea::placeholder {
-            color: var(--text-gray);
-        }
-
-        .contact-form button {
-            width: 100%;
-        }
 
         /* Footer */
         .footer {
@@ -426,7 +387,7 @@
             <ul class="nav-menu">
                 <li><a href="#home" class="nav-link">Home</a></li>
                 <li><a href="#creator" class="nav-link">Creator</a></li>
-                <li><a href="#contact" class="nav-link">Contact</a></li>
+
             </ul>
         </div>
     </nav>
@@ -485,27 +446,16 @@
                         </div>
                     </div>
                     <div id="resultStatus" style="display: none; margin-top: 1rem;">
-                        <p>✓ Your drop is ready!</p>
-                        <audio id="resultAudio" controls></audio>
-                        <button id="downloadBtn" class="btn btn-download" style="margin-top: 1rem; width: 100%;">📥 Download</button>
+                        <p>✓ Your DJ drop is ready!</p>
+                        <audio id="resultAudio" controls style="width: 100%; margin: 1rem 0;"></audio>
+                        <button id="downloadBtn" class="btn btn-download" style="width: 100%;">📥 Download DJ Drop</button>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Contact Section -->
-    <section id="contact" class="contact">
-        <div class="container">
-            <h2>Get in Touch</h2>
-            <form class="contact-form" id="contactForm">
-                <input type="text" placeholder="Your Name" required>
-                <input type="email" placeholder="Your Email" required>
-                <textarea placeholder="Your Message" rows="5" required></textarea>
-                <button type="submit" class="btn btn-primary">Send Message</button>
-            </form>
-        </div>
-    </section>
+
 
     <!-- Footer -->
     <footer class="footer">
@@ -528,7 +478,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupUploadBox();
             setupGenerateButton();
-            setupContactForm();
         });
 
         // Setup upload box
@@ -711,17 +660,7 @@
             return new Blob([byteArray], { type: mimeType });
         }
 
-        // Setup contact form
-        function setupContactForm() {
-            const form = document.getElementById('contactForm');
-            if (form) {
-                form.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    alert('Thank you! We will get back to you soon.');
-                    form.reset();
-                });
-            }
-        }
+
     </script>
 </body>
 </html>
