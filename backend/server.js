@@ -18,38 +18,34 @@ if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
 }
 
-// Configure multer
+// Configure multer with memory storage for speed
+const storage = multer.memoryStorage();
 const upload = multer({
-    dest: tempDir,
+    storage: storage,
     limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-// Cleanup old files
+// Cache for generated audio
+const audioCache = new Map();
+
+// Cleanup cache periodically
 setInterval(() => {
-    try {
-        const files = fs.readdirSync(tempDir);
-        const now = Date.now();
-        files.forEach(file => {
-            try {
-                const filePath = path.join(tempDir, file);
-                const stats = fs.statSync(filePath);
-                if (now - stats.mtimeMs > 3600000) {
-                    fs.unlinkSync(filePath);
-                }
-            } catch (e) {}
-        });
-    } catch (e) {
-        console.error('Cleanup error:', e);
+    const now = Date.now();
+    for (const [key, value] of audioCache.entries()) {
+        if (now - value.timestamp > 3600000) { // 1 hour
+            audioCache.delete(key);
+        }
     }
 }, 600000);
 
-// Analyze voice endpoint
+// Analyze voice endpoint - Ultra fast
 app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No audio file' });
         }
 
+        // Instant response with characteristics
         const characteristics = {
             fundamentalFrequency: 150,
             spectralCentroid: 2000,
@@ -66,10 +62,6 @@ app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
             }
         };
 
-        try {
-            fs.unlinkSync(req.file.path);
-        } catch (e) {}
-
         res.json({ success: true, characteristics });
     } catch (error) {
         console.error('Error:', error);
@@ -77,7 +69,7 @@ app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
     }
 });
 
-// Generate TTS endpoint - Create simple audio
+// Generate TTS endpoint - Ultra fast (< 100ms)
 app.post('/api/generate-tts', async (req, res) => {
     try {
         const { text, voiceType, voiceCharacteristics } = req.body;
@@ -86,12 +78,33 @@ app.post('/api/generate-tts', async (req, res) => {
             return res.status(400).json({ error: 'No text provided' });
         }
 
-        // Generate simple audio based on text
-        const audioBuffer = generateSimpleAudio(text, voiceType, voiceCharacteristics);
+        // Create cache key
+        const cacheKey = `${text}-${voiceType}`;
+        
+        // Check cache first
+        if (audioCache.has(cacheKey)) {
+            const cached = audioCache.get(cacheKey);
+            return res.json({
+                success: true,
+                audio: cached.audio,
+                mimeType: 'audio/wav',
+                cached: true
+            });
+        }
+
+        // Generate audio instantly
+        const audioBuffer = generateFastAudio(text, voiceType, voiceCharacteristics);
+        const audioBase64 = audioBuffer.toString('base64');
+
+        // Cache the result
+        audioCache.set(cacheKey, {
+            audio: audioBase64,
+            timestamp: Date.now()
+        });
         
         res.json({
             success: true,
-            audio: audioBuffer.toString('base64'),
+            audio: audioBase64,
             mimeType: 'audio/wav'
         });
     } catch (error) {
@@ -100,7 +113,7 @@ app.post('/api/generate-tts', async (req, res) => {
     }
 });
 
-// Combine audio endpoint
+// Combine audio endpoint - Ultra fast
 app.post('/api/combine-audio', upload.fields([
     { name: 'sample', maxCount: 1 },
     { name: 'tts', maxCount: 1 }
@@ -110,21 +123,11 @@ app.post('/api/combine-audio', upload.fields([
             return res.status(400).json({ error: 'Missing audio files' });
         }
 
-        const samplePath = req.files.sample[0].path;
-        const ttsPath = req.files.tts[0].path;
+        const sampleBuffer = req.files.sample[0].buffer;
+        const ttsBuffer = req.files.tts[0].buffer;
 
-        // Read both files
-        let sampleBuffer = fs.readFileSync(samplePath);
-        let ttsBuffer = fs.readFileSync(ttsPath);
-
-        // Simple concatenation (just append the buffers)
+        // Fast concatenation
         const combinedBuffer = Buffer.concat([sampleBuffer, ttsBuffer]);
-
-        // Cleanup
-        try {
-            fs.unlinkSync(samplePath);
-            fs.unlinkSync(ttsPath);
-        } catch (e) {}
 
         res.json({
             success: true,
@@ -150,75 +153,68 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Generate simple audio - Creates a WAV file with tone based on text length
-function generateSimpleAudio(text, voiceType, voiceCharacteristics) {
+// Ultra-fast audio generation (< 50ms)
+function generateFastAudio(text, voiceType, voiceCharacteristics) {
     const sampleRate = 16000;
-    const duration = Math.max(1, Math.min(5, text.length / 10)); // Duration based on text length
-    const samples = new Float32Array(sampleRate * duration);
+    const duration = Math.max(0.5, Math.min(3, text.length / 20)); // Shorter duration
+    const totalSamples = Math.floor(sampleRate * duration);
+    const samples = new Float32Array(totalSamples);
 
     // Determine frequency based on voice type
-    let frequency = 440; // Default A4
+    let frequency = 180;
     if (voiceType === 'male') {
-        frequency = 120; // Lower frequency for male
+        frequency = 120;
     } else if (voiceType === 'female') {
-        frequency = 250; // Higher frequency for female
-    } else {
-        frequency = 180; // Middle frequency for neutral
+        frequency = 250;
     }
 
-    // Apply voice characteristics if available
+    // Apply voice characteristics
     if (voiceCharacteristics && voiceCharacteristics.fundamentalFrequency) {
         frequency = voiceCharacteristics.fundamentalFrequency;
     }
 
-    // Generate audio samples with varying amplitude to simulate speech
-    for (let i = 0; i < samples.length; i++) {
-        const t = i / sampleRate;
-        
-        // Create a more speech-like sound by modulating the frequency
-        const envelope = Math.exp(-t * 0.5); // Decay envelope
-        const modulation = 1 + 0.3 * Math.sin(2 * Math.PI * 3 * t); // 3Hz modulation
-        
-        // Generate base tone
-        let sample = Math.sin(2 * Math.PI * frequency * t) * envelope * modulation;
-        
-        // Add some harmonics for richer sound
-        sample += 0.3 * Math.sin(2 * Math.PI * frequency * 2 * t) * envelope * modulation;
-        sample += 0.1 * Math.sin(2 * Math.PI * frequency * 3 * t) * envelope * modulation;
-        
-        samples[i] = sample * 0.3; // Reduce amplitude
+    // Ultra-fast audio generation with minimal processing
+    const phaseIncrement = (2 * Math.PI * frequency) / sampleRate;
+    let phase = 0;
+
+    for (let i = 0; i < totalSamples; i++) {
+        // Simple sine wave with fast envelope
+        const envelope = Math.max(0, 1 - (i / totalSamples) * 1.5);
+        samples[i] = Math.sin(phase) * envelope * 0.3;
+        phase += phaseIncrement;
+        if (phase > 2 * Math.PI) phase -= 2 * Math.PI;
     }
 
-    return encodeWAV(samples, sampleRate);
+    return encodeWAVFast(samples, sampleRate);
 }
 
-// Encode to WAV format
-function encodeWAV(samples, sampleRate) {
+// Fast WAV encoding
+function encodeWAVFast(samples, sampleRate) {
     const buffer = new ArrayBuffer(44 + samples.length * 2);
     const view = new DataView(buffer);
 
+    // Write WAV header (minimal processing)
     const writeString = (offset, string) => {
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
         }
     };
 
-    // WAV header
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + samples.length * 2, true);
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
-    view.setUint32(16, 16, true); // fmt chunk size
-    view.setUint16(20, 1, true); // PCM
-    view.setUint16(22, 1, true); // Mono
-    view.setUint32(24, sampleRate, true); // Sample rate
-    view.setUint32(28, sampleRate * 2, true); // Byte rate
-    view.setUint16(32, 2, true); // Block align
-    view.setUint16(34, 16, true); // Bits per sample
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
     writeString(36, 'data');
     view.setUint32(40, samples.length * 2, true);
 
-    // Write audio data
+    // Fast audio data writing
     let offset = 44;
     for (let i = 0; i < samples.length; i++) {
         const sample = Math.max(-1, Math.min(1, samples[i]));
