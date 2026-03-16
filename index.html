@@ -471,8 +471,18 @@
         // Version 2.1.0 - Enhanced download with timestamp and feedback
         // Get API base URL based on environment
         const getAPIBaseURL = () => {
+            // Check for environment variable first
+            if (import.meta.env.VITE_API_URL) {
+                return import.meta.env.VITE_API_URL;
+            }
+            
             const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            return isDev ? 'http://localhost:3001/api' : '/api';
+            if (isDev) {
+                return 'http://localhost:3001/api';
+            }
+            
+            // Default to relative path for same-origin requests
+            return '/api';
         };
 
         const API_BASE_URL = getAPIBaseURL();
