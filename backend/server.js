@@ -3,12 +3,9 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
-const { promisify } = require('util');
 const os = require('os');
 
 const app = express();
-const execAsync = promisify(exec);
 
 // Middleware
 app.use(cors());
@@ -33,16 +30,18 @@ setInterval(() => {
         const files = fs.readdirSync(tempDir);
         const now = Date.now();
         files.forEach(file => {
-            const filePath = path.join(tempDir, file);
-            const stats = fs.statSync(filePath);
-            if (now - stats.mtimeMs > 3600000) { // 1 hour
-                fs.unlinkSync(filePath);
-            }
+            try {
+                const filePath = path.join(tempDir, file);
+                const stats = fs.statSync(filePath);
+                if (now - stats.mtimeMs > 3600000) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (e) {}
         });
     } catch (e) {
         console.error('Cleanup error:', e);
     }
-}, 600000); // Every 10 minutes
+}, 600000);
 
 // Analyze voice endpoint
 app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
@@ -78,7 +77,7 @@ app.post('/api/analyze-voice', upload.single('audio'), async (req, res) => {
     }
 });
 
-// Generate TTS endpoint
+// Generate TTS endpoint - Create simple audio
 app.post('/api/generate-tts', async (req, res) => {
     try {
         const { text, voiceType, voiceCharacteristics } = req.body;
@@ -87,46 +86,17 @@ app.post('/api/generate-tts', async (req, res) => {
             return res.status(400).json({ error: 'No text provided' });
         }
 
-        const outputPath = path.join(tempDir, `tts-${Date.now()}.wav`);
+        // Generate simple audio based on text
+        const audioBuffer = generateSimpleAudio(text, voiceType, voiceCharacteristics);
         
-        let pitch = 50;
-        let speed = 150;
-        let gender = 'm';
-
-        if (voiceCharacteristics) {
-            const f0 = voiceCharacteristics.fundamentalFrequency || 150;
-            pitch = Math.max(10, Math.min(99, Math.round((f0 / 150) * 50)));
-            const clarity = voiceCharacteristics.voiceQuality?.clarity || 0.8;
-            speed = Math.round(150 * (0.8 + clarity * 0.4));
-            gender = f0 > 160 ? 'f' : 'm';
-        }
-
-        if (voiceType === 'female') gender = 'f';
-        else if (voiceType === 'male') gender = 'm';
-
-        const command = `espeak -v ${gender} -p ${pitch} -s ${speed} -w "${outputPath}" "${text.replace(/"/g, '\\"')}" 2>/dev/null`;
-
-        try {
-            await execAsync(command);
-        } catch (e) {
-            // Fallback: create silent audio
-            createSilentAudio(outputPath);
-        }
-
-        const audioBuffer = fs.readFileSync(outputPath);
-        
-        try {
-            fs.unlinkSync(outputPath);
-        } catch (e) {}
-
         res.json({
             success: true,
             audio: audioBuffer.toString('base64'),
             mimeType: 'audio/wav'
         });
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'TTS generation failed' });
+        console.error('TTS Error:', error);
+        res.status(500).json({ error: 'TTS generation failed: ' + error.message });
     }
 });
 
@@ -142,39 +112,34 @@ app.post('/api/combine-audio', upload.fields([
 
         const samplePath = req.files.sample[0].path;
         const ttsPath = req.files.tts[0].path;
-        const outputPath = path.join(tempDir, `combined-${Date.now()}.wav`);
 
-        const command = `ffmpeg -i "${samplePath}" -i "${ttsPath}" -filter_complex "[0:a][1:a]concat=n=2:v=0:a=1[out]" -map "[out]" -c:a libmp3lame -q:a 4 "${outputPath}" -y 2>/dev/null`;
+        // Read both files
+        let sampleBuffer = fs.readFileSync(samplePath);
+        let ttsBuffer = fs.readFileSync(ttsPath);
 
-        try {
-            await execAsync(command);
-        } catch (e) {
-            // Fallback: just use the sample
-            fs.copyFileSync(samplePath, outputPath);
-        }
+        // Simple concatenation (just append the buffers)
+        const combinedBuffer = Buffer.concat([sampleBuffer, ttsBuffer]);
 
-        const audioBuffer = fs.readFileSync(outputPath);
-
+        // Cleanup
         try {
             fs.unlinkSync(samplePath);
             fs.unlinkSync(ttsPath);
-            fs.unlinkSync(outputPath);
         } catch (e) {}
 
         res.json({
             success: true,
-            audio: audioBuffer.toString('base64'),
+            audio: combinedBuffer.toString('base64'),
             mimeType: 'audio/wav'
         });
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Combination failed' });
+        console.error('Combine Error:', error);
+        res.status(500).json({ error: 'Combination failed: ' + error.message });
     }
 });
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', message: 'Backend is running' });
 });
 
 // Serve static files
@@ -185,21 +150,49 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Create silent audio fallback
-function createSilentAudio(outputPath) {
+// Generate simple audio - Creates a WAV file with tone based on text length
+function generateSimpleAudio(text, voiceType, voiceCharacteristics) {
     const sampleRate = 16000;
-    const duration = 2;
+    const duration = Math.max(1, Math.min(5, text.length / 10)); // Duration based on text length
     const samples = new Float32Array(sampleRate * duration);
 
-    for (let i = 0; i < samples.length; i++) {
-        samples[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.1;
+    // Determine frequency based on voice type
+    let frequency = 440; // Default A4
+    if (voiceType === 'male') {
+        frequency = 120; // Lower frequency for male
+    } else if (voiceType === 'female') {
+        frequency = 250; // Higher frequency for female
+    } else {
+        frequency = 180; // Middle frequency for neutral
     }
 
-    const wavBuffer = encodeWAV(samples, sampleRate);
-    fs.writeFileSync(outputPath, wavBuffer);
+    // Apply voice characteristics if available
+    if (voiceCharacteristics && voiceCharacteristics.fundamentalFrequency) {
+        frequency = voiceCharacteristics.fundamentalFrequency;
+    }
+
+    // Generate audio samples with varying amplitude to simulate speech
+    for (let i = 0; i < samples.length; i++) {
+        const t = i / sampleRate;
+        
+        // Create a more speech-like sound by modulating the frequency
+        const envelope = Math.exp(-t * 0.5); // Decay envelope
+        const modulation = 1 + 0.3 * Math.sin(2 * Math.PI * 3 * t); // 3Hz modulation
+        
+        // Generate base tone
+        let sample = Math.sin(2 * Math.PI * frequency * t) * envelope * modulation;
+        
+        // Add some harmonics for richer sound
+        sample += 0.3 * Math.sin(2 * Math.PI * frequency * 2 * t) * envelope * modulation;
+        sample += 0.1 * Math.sin(2 * Math.PI * frequency * 3 * t) * envelope * modulation;
+        
+        samples[i] = sample * 0.3; // Reduce amplitude
+    }
+
+    return encodeWAV(samples, sampleRate);
 }
 
-// Encode to WAV
+// Encode to WAV format
 function encodeWAV(samples, sampleRate) {
     const buffer = new ArrayBuffer(44 + samples.length * 2);
     const view = new DataView(buffer);
@@ -210,20 +203,22 @@ function encodeWAV(samples, sampleRate) {
         }
     };
 
+    // WAV header
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + samples.length * 2, true);
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true); // Sample rate
+    view.setUint32(28, sampleRate * 2, true); // Byte rate
+    view.setUint16(32, 2, true); // Block align
+    view.setUint16(34, 16, true); // Bits per sample
     writeString(36, 'data');
     view.setUint32(40, samples.length * 2, true);
 
+    // Write audio data
     let offset = 44;
     for (let i = 0; i < samples.length; i++) {
         const sample = Math.max(-1, Math.min(1, samples[i]));
@@ -233,6 +228,12 @@ function encodeWAV(samples, sampleRate) {
 
     return Buffer.from(buffer);
 }
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Internal server error: ' + err.message });
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
