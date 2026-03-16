@@ -4,7 +4,419 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DJ Drops - AI Voice Cloning</title>
-    <link rel="stylesheet" href="./style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-dark: #0f0f1e;
+            --secondary-dark: #1a1a2e;
+            --accent-red: #e94560;
+            --accent-blue: #0f3460;
+            --text-light: #eaeaea;
+            --text-gray: #b0b0b0;
+            --border-color: #2a2a3e;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--primary-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Navigation */
+        .navbar {
+            background-color: var(--secondary-dark);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 2px solid var(--accent-red);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-red);
+        }
+
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text-light);
+            text-decoration: none;
+            transition: color 0.3s ease;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            color: var(--accent-red);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--accent-blue) 100%);
+            padding: 120px 20px;
+            text-align: center;
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hero-content {
+            max-width: 800px;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-red);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .hero p {
+            font-size: 1.3rem;
+            color: var(--text-gray);
+            margin-bottom: 2rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #d63450;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
+        }
+
+        .btn-success {
+            background-color: #00a86b;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #008c5e;
+            transform: translateY(-2px);
+        }
+
+        .btn-success:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-download {
+            background-color: #0066cc;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background-color: #0052a3;
+            transform: translateY(-2px);
+        }
+
+        /* Creator Section */
+        .creator {
+            background-color: var(--primary-dark);
+            padding: 80px 20px;
+        }
+
+        .creator h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            color: var(--accent-red);
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-gray);
+            margin-bottom: 3rem;
+            font-size: 1.1rem;
+        }
+
+        .creator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .step-card {
+            background-color: var(--secondary-dark);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .step-card:hover {
+            border-color: var(--accent-red);
+            box-shadow: 0 5px 20px rgba(233, 69, 96, 0.2);
+        }
+
+        .step-card h3 {
+            color: var(--accent-red);
+            margin-bottom: 1.5rem;
+            font-size: 1.3rem;
+        }
+
+        .upload-box {
+            border: 2px dashed var(--accent-red);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: rgba(233, 69, 96, 0.05);
+        }
+
+        .upload-box:hover {
+            background-color: rgba(233, 69, 96, 0.1);
+            border-color: #d63450;
+        }
+
+        .upload-box p {
+            color: var(--text-gray);
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        #uploadStatus {
+            background-color: rgba(0, 168, 107, 0.1);
+            border: 1px solid #00a86b;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        #uploadStatus p {
+            color: #00a86b;
+            margin-bottom: 0.5rem;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1rem;
+            background-color: var(--primary-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            margin-bottom: 1rem;
+        }
+
+        textarea::placeholder {
+            color: var(--text-gray);
+        }
+
+        .voice-select {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .voice-select label {
+            color: var(--text-light);
+            font-weight: bold;
+        }
+
+        .voice-select select {
+            padding: 0.75rem;
+            background-color: var(--primary-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #loadingStatus,
+        #resultStatus {
+            background-color: rgba(0, 102, 204, 0.1);
+            border: 1px solid #0066cc;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        #loadingStatus p,
+        #resultStatus p {
+            color: #0066cc;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background-color: var(--border-color);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-red), #d63450);
+            width: 0%;
+            animation: progress 2s ease-in-out infinite;
+        }
+
+        @keyframes progress {
+            0% { width: 0%; }
+            50% { width: 100%; }
+            100% { width: 0%; }
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        /* Contact Section */
+        .contact {
+            background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--accent-blue) 100%);
+            padding: 80px 20px;
+        }
+
+        .contact h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            color: var(--accent-red);
+            margin-bottom: 2rem;
+        }
+
+        .contact-form {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .contact-form input,
+        .contact-form textarea {
+            padding: 12px;
+            background-color: var(--primary-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 1rem;
+        }
+
+        .contact-form input::placeholder,
+        .contact-form textarea::placeholder {
+            color: var(--text-gray);
+        }
+
+        .contact-form button {
+            width: 100%;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: var(--secondary-dark);
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-gray);
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero p {
+                font-size: 1.1rem;
+            }
+
+            .nav-menu {
+                gap: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .creator-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .creator h2 {
+                font-size: 1.8rem;
+            }
+
+            .contact h2 {
+                font-size: 1.8rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero h1 {
+                font-size: 1.5rem;
+            }
+
+            .logo {
+                font-size: 1.2rem;
+            }
+
+            .nav-menu {
+                gap: 0.5rem;
+                font-size: 0.8rem;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                font-size: 0.9rem;
+            }
+
+            .step-card {
+                padding: 1.5rem;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation -->
@@ -44,7 +456,7 @@
                     </div>
                     <div id="uploadStatus" style="display: none; margin-top: 1rem;">
                         <p>✓ File: <span id="fileName"></span></p>
-                        <audio id="audioPreview" controls style="width: 100%; margin-top: 0.5rem;"></audio>
+                        <audio id="audioPreview" controls></audio>
                     </div>
                 </div>
 
@@ -74,7 +486,7 @@
                     </div>
                     <div id="resultStatus" style="display: none; margin-top: 1rem;">
                         <p>✓ Your drop is ready!</p>
-                        <audio id="resultAudio" controls style="width: 100%; margin-top: 0.5rem;"></audio>
+                        <audio id="resultAudio" controls></audio>
                         <button id="downloadBtn" class="btn btn-download" style="margin-top: 1rem; width: 100%;">📥 Download</button>
                     </div>
                 </div>
@@ -100,6 +512,216 @@
         <p>&copy; 2026 DJ Drops. All rights reserved.</p>
     </footer>
 
-    <script src="./script.js"></script>
+    <script>
+        // Get API base URL based on environment
+        const getAPIBaseURL = () => {
+            const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            return isDev ? 'http://localhost:3001/api' : '/api';
+        };
+
+        const API_BASE_URL = getAPIBaseURL();
+
+        let uploadedFile = null;
+        let voiceCharacteristics = null;
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setupUploadBox();
+            setupGenerateButton();
+            setupContactForm();
+        });
+
+        // Setup upload box
+        function setupUploadBox() {
+            const uploadBox = document.getElementById('uploadBox');
+            const audioInput = document.getElementById('audioInput');
+
+            uploadBox.addEventListener('click', () => audioInput.click());
+
+            uploadBox.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadBox.style.backgroundColor = 'rgba(233, 69, 96, 0.2)';
+            });
+
+            uploadBox.addEventListener('dragleave', () => {
+                uploadBox.style.backgroundColor = 'rgba(233, 69, 96, 0.05)';
+            });
+
+            uploadBox.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadBox.style.backgroundColor = 'rgba(233, 69, 96, 0.05)';
+                handleFileUpload(e.dataTransfer.files[0]);
+            });
+
+            audioInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    handleFileUpload(e.target.files[0]);
+                }
+            });
+        }
+
+        // Handle file upload
+        function handleFileUpload(file) {
+            if (!file.type.startsWith('audio/')) {
+                alert('Please upload an audio file');
+                return;
+            }
+
+            uploadedFile = file;
+            const uploadBox = document.getElementById('uploadBox');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const fileName = document.getElementById('fileName');
+            const audioPreview = document.getElementById('audioPreview');
+
+            fileName.textContent = file.name;
+            uploadBox.style.display = 'none';
+            uploadStatus.style.display = 'block';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                audioPreview.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+
+            // Analyze voice characteristics
+            analyzeVoice(file);
+
+            // Enable generate button
+            updateGenerateButtonState();
+        }
+
+        // Analyze voice characteristics
+        async function analyzeVoice(file) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', file);
+
+                const response = await fetch(`${API_BASE_URL}/analyze-voice`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    voiceCharacteristics = data.characteristics;
+                    console.log('Voice analyzed:', voiceCharacteristics);
+                }
+            } catch (error) {
+                console.error('Error analyzing voice:', error);
+            }
+        }
+
+        // Setup generate button
+        function setupGenerateButton() {
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.addEventListener('click', generateDrop);
+        }
+
+        // Update generate button state
+        function updateGenerateButtonState() {
+            const generateBtn = document.getElementById('generateBtn');
+            const textInput = document.getElementById('textInput');
+            const hasFile = uploadedFile !== null;
+            const hasText = textInput.value.trim().length > 0;
+
+            generateBtn.disabled = !(hasFile && hasText);
+        }
+
+        // Listen to text input changes
+        document.getElementById('textInput').addEventListener('input', updateGenerateButtonState);
+
+        // Generate DJ drop
+        async function generateDrop() {
+            const textInput = document.getElementById('textInput');
+            const voiceType = document.getElementById('voiceType');
+            const generateBtn = document.getElementById('generateBtn');
+            const loadingStatus = document.getElementById('loadingStatus');
+            const resultStatus = document.getElementById('resultStatus');
+
+            if (!uploadedFile || !textInput.value.trim()) {
+                alert('Please upload a file and enter text');
+                return;
+            }
+
+            // Show loading
+            generateBtn.disabled = true;
+            loadingStatus.style.display = 'block';
+            resultStatus.style.display = 'none';
+
+            try {
+                // Step 1: Generate TTS
+                const ttsResponse = await fetch(`${API_BASE_URL}/generate-tts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: textInput.value,
+                        voiceType: voiceType.value,
+                        voiceCharacteristics: voiceCharacteristics
+                    })
+                });
+
+                if (!ttsResponse.ok) throw new Error('TTS generation failed');
+                const ttsData = await ttsResponse.json();
+
+                // Step 2: Combine audio
+                const formData = new FormData();
+                formData.append('sample', uploadedFile);
+                formData.append('tts', base64ToBlob(ttsData.audio, 'audio/wav'));
+
+                const combineResponse = await fetch(`${API_BASE_URL}/combine-audio`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!combineResponse.ok) throw new Error('Audio combination failed');
+                const combineData = await combineResponse.json();
+
+                // Display result
+                const resultAudio = document.getElementById('resultAudio');
+                resultAudio.src = 'data:audio/wav;base64,' + combineData.audio;
+
+                loadingStatus.style.display = 'none';
+                resultStatus.style.display = 'block';
+
+                // Setup download button
+                document.getElementById('downloadBtn').onclick = () => {
+                    const link = document.createElement('a');
+                    link.href = 'data:audio/wav;base64,' + combineData.audio;
+                    link.download = `dj-drop-${Date.now()}.wav`;
+                    link.click();
+                };
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error generating drop: ' + error.message);
+                loadingStatus.style.display = 'none';
+            } finally {
+                generateBtn.disabled = false;
+            }
+        }
+
+        // Convert base64 to blob
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
+        }
+
+        // Setup contact form
+        function setupContactForm() {
+            const form = document.getElementById('contactForm');
+            if (form) {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    alert('Thank you! We will get back to you soon.');
+                    form.reset();
+                });
+            }
+        }
+    </script>
 </body>
 </html>
